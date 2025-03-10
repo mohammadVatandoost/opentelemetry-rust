@@ -219,6 +219,7 @@ pub mod tonic {
 
 #[cfg(test)]
 mod tests {
+    use std::time;
     use crate::transform::common::tonic::ResourceAttributesWithSchema;
     use opentelemetry::logs::LogRecord as _;
     use opentelemetry::logs::Logger;
@@ -240,7 +241,7 @@ mod tests {
             Ok(())
         }
 
-        fn shutdown(&self) -> OTelSdkResult {
+        fn shutdown(&self, _timeout: time::Duration) -> OTelSdkResult {
             Ok(())
         }
     }

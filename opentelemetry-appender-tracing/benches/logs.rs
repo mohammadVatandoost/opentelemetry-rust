@@ -10,9 +10,18 @@
     | noop_layer_disabled         | 12 ns       |
     | noop_layer_enabled          | 25 ns       |
     | ot_layer_disabled           | 19 ns       |
-    | ot_layer_enabled            | 196 ns      |
-*/
+    | ot_layer_enabled            | 167 ns      |
 
+    Hardware: Apple M4 Pro
+    Total Number of Cores:	14 (10 performance and 4 efficiency)
+    | Test                        | Average time|
+    |-----------------------------|-------------|
+    | log_no_subscriber           | 285 ps      |
+    | noop_layer_disabled         | 8 ns       |
+    | noop_layer_enabled          | 14 ns       |
+    | ot_layer_disabled           | 12 ns       |
+    | ot_layer_enabled            | 186 ns      |
+*/
 use criterion::{criterion_group, criterion_main, Criterion};
 use opentelemetry::InstrumentationScope;
 use opentelemetry_appender_tracing::layer as tracing_layer;
@@ -21,6 +30,7 @@ use opentelemetry_sdk::logs::{LogProcessor, SdkLogRecord, SdkLoggerProvider};
 use opentelemetry_sdk::Resource;
 #[cfg(not(target_os = "windows"))]
 use pprof::criterion::{Output, PProfProfiler};
+use std::time::Duration;
 use tracing::error;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::Layer;
@@ -44,7 +54,7 @@ impl LogProcessor for NoopProcessor {
         Ok(())
     }
 
-    fn shutdown(&self) -> OTelSdkResult {
+    fn shutdown(&self, _timeout: Duration) -> OTelSdkResult {
         Ok(())
     }
 
@@ -52,7 +62,7 @@ impl LogProcessor for NoopProcessor {
         &self,
         _level: opentelemetry::logs::Severity,
         _target: &str,
-        _name: &str,
+        _name: Option<&str>,
     ) -> bool {
         self.enabled
     }
@@ -94,7 +104,7 @@ fn benchmark_no_subscriber(c: &mut Criterion) {
     c.bench_function("log_no_subscriber", |b| {
         b.iter(|| {
             error!(
-                name = "CheckoutFailed",
+                name : "CheckoutFailed",
                 book_id = "12345",
                 book_title = "Rust Programming Adventures",
                 message = "Unable to process checkout."
@@ -120,7 +130,7 @@ fn benchmark_with_ot_layer(c: &mut Criterion, enabled: bool, bench_name: &str) {
         c.bench_function(bench_name, |b| {
             b.iter(|| {
                 error!(
-                    name = "CheckoutFailed",
+                    name : "CheckoutFailed",
                     book_id = "12345",
                     book_title = "Rust Programming Adventures",
                     message = "Unable to process checkout."
@@ -137,10 +147,10 @@ fn benchmark_with_noop_layer(c: &mut Criterion, enabled: bool, bench_name: &str)
         c.bench_function(bench_name, |b| {
             b.iter(|| {
                 error!(
-                    name = "CheckoutFailed",
+                    name : "CheckoutFailed",
                     book_id = "12345",
                     book_title = "Rust Programming Adventures",
-                    "Unable to process checkout."
+                    message = "Unable to process checkout."
                 );
             });
         });

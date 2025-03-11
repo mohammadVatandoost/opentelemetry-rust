@@ -17,7 +17,7 @@ use std::{
 };
 
 use super::{BatchConfig, LogProcessor};
-use crate::runtime::{RuntimeChannel, TrySend};
+use crate::runtime::{to_interval_stream, RuntimeChannel, TrySend};
 use futures_channel::oneshot;
 use futures_util::{
     future::{self, Either},
@@ -87,7 +87,7 @@ impl<R: RuntimeChannel> LogProcessor for BatchLogProcessor<R> {
             .and_then(std::convert::identity)
     }
 
-    fn shutdown(&self) -> OTelSdkResult {
+    fn shutdown(&self, _timeout: Duration) -> OTelSdkResult {
         let dropped_logs = self.dropped_logs_count.load(Ordering::Relaxed);
         let max_queue_size = self.max_queue_size;
         if dropped_logs > 0 {
@@ -126,13 +126,13 @@ impl<R: RuntimeChannel> BatchLogProcessor<R> {
         let inner_runtime = runtime.clone();
 
         // Spawn worker process via user-defined spawn function.
-        runtime.spawn(Box::pin(async move {
+        runtime.spawn(async move {
             // Timer will take a reference to the current runtime, so its important we do this within the
             // runtime.spawn()
-            let ticker = inner_runtime
-                .interval(config.scheduled_delay)
+            let ticker = to_interval_stream(inner_runtime.clone(), config.scheduled_delay)
                 .skip(1) // The ticker is fired immediately, so we should skip the first one to align with the interval.
                 .map(|_| BatchMessage::Flush(None));
+
             let timeout_runtime = inner_runtime.clone();
             let mut logs = Vec::new();
             let mut messages = Box::pin(stream::select(message_receiver, ticker));
@@ -204,7 +204,7 @@ impl<R: RuntimeChannel> BatchLogProcessor<R> {
                     }
                 }
             }
-        }));
+        });
         // Return batch processor with link to worker
         BatchLogProcessor {
             message_sender,
@@ -321,7 +321,7 @@ mod tests {
             Ok(())
         }
 
-        fn shutdown(&mut self) -> OTelSdkResult {
+        fn shutdown(&self) -> OTelSdkResult {
             Ok(())
         }
 
@@ -546,7 +546,7 @@ mod tests {
 
         processor.emit(&mut record, &instrumentation);
         processor.force_flush().unwrap();
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
         // todo: expect to see errors here. How should we assert this?
         processor.emit(&mut record, &instrumentation);
         assert_eq!(1, exporter.get_emitted_logs().unwrap().len())
@@ -561,7 +561,7 @@ mod tests {
             runtime::TokioCurrentThread,
         );
 
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -578,7 +578,7 @@ mod tests {
         //
         // deadlock happens in shutdown with tokio current_thread runtime
         //
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -589,7 +589,7 @@ mod tests {
             BatchConfig::default(),
             runtime::TokioCurrentThread,
         );
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -597,7 +597,7 @@ mod tests {
         let exporter = InMemoryLogExporterBuilder::default().build();
         let processor =
             BatchLogProcessor::new(exporter.clone(), BatchConfig::default(), runtime::Tokio);
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -605,7 +605,7 @@ mod tests {
         let exporter = InMemoryLogExporterBuilder::default().build();
         let processor =
             BatchLogProcessor::new(exporter.clone(), BatchConfig::default(), runtime::Tokio);
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[derive(Debug)]
@@ -633,7 +633,7 @@ mod tests {
             Ok(())
         }
 
-        fn shutdown(&self) -> OTelSdkResult {
+        fn shutdown(&self, _timeout: Duration) -> OTelSdkResult {
             Ok(())
         }
     }
@@ -663,7 +663,7 @@ mod tests {
             Ok(())
         }
 
-        fn shutdown(&self) -> OTelSdkResult {
+        fn shutdown(&self, _timeout: Duration) -> OTelSdkResult {
             Ok(())
         }
     }
@@ -808,7 +808,7 @@ mod tests {
 
         processor.emit(&mut record, &instrumentation);
         processor.force_flush().unwrap();
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
         // todo: expect to see errors here. How should we assert this?
         processor.emit(&mut record, &instrumentation);
         assert_eq!(1, exporter.get_emitted_logs().unwrap().len())
@@ -824,7 +824,7 @@ mod tests {
         //
         // deadlock happens in shutdown with tokio current_thread runtime
         //
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -837,7 +837,7 @@ mod tests {
             runtime::TokioCurrentThread,
         );
 
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -846,7 +846,7 @@ mod tests {
         let processor =
             BatchLogProcessor::new(exporter.clone(), BatchConfig::default(), runtime::Tokio);
 
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -858,6 +858,6 @@ mod tests {
             runtime::TokioCurrentThread,
         );
 
-        processor.shutdown().unwrap();
+        processor.shutdown(Duration::from_secs(5)).unwrap();
     }
 }

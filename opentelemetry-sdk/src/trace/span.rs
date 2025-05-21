@@ -93,27 +93,13 @@ impl opentelemetry::trace::Span for Span {
         &mut self,
         name: T,
         timestamp: SystemTime,
-        mut attributes: Vec<KeyValue>,
+        attributes: Vec<KeyValue>,
     ) where
         T: Into<Cow<'static, str>>,
     {
-        let span_events_limit = self.span_limits.max_events_per_span as usize;
-        let event_attributes_limit = self.span_limits.max_attributes_per_event as usize;
         self.with_data(|data| {
-            if data.events.len() < span_events_limit {
-                let dropped_attributes_count =
-                    attributes.len().saturating_sub(event_attributes_limit);
-                attributes.truncate(event_attributes_limit);
-
-                data.events.add_event(Event::new(
-                    name,
-                    timestamp,
-                    attributes,
-                    dropped_attributes_count as u32,
-                ));
-            } else {
-                data.events.dropped_count += 1;
-            }
+            data.events
+                .add_event(Event::new(name, timestamp, attributes));
         });
     }
 
@@ -171,22 +157,8 @@ impl opentelemetry::trace::Span for Span {
     /// Add `Link` to this `Span`
     ///
     fn add_link(&mut self, span_context: SpanContext, attributes: Vec<KeyValue>) {
-        let span_links_limit = self.span_limits.max_links_per_span as usize;
-        let link_attributes_limit = self.span_limits.max_attributes_per_link as usize;
         self.with_data(|data| {
-            if data.links.links.len() < span_links_limit {
-                let dropped_attributes_count =
-                    attributes.len().saturating_sub(link_attributes_limit);
-                let mut attributes = attributes;
-                attributes.truncate(link_attributes_limit);
-                data.links.add_link(Link::new(
-                    span_context,
-                    attributes,
-                    dropped_attributes_count as u32,
-                ));
-            } else {
-                data.links.dropped_count += 1;
-            }
+            data.links.add_link(Link::new(span_context, attributes));
         });
     }
 

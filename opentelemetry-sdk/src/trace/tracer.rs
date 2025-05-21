@@ -84,13 +84,6 @@ impl SdkTracer {
         let span_links: SpanLinks = if let Some(mut links) = builder.links.take() {
             let dropped_count = links.len().saturating_sub(spans_links_limit);
             links.truncate(spans_links_limit);
-            let link_attributes_limit = span_limits.max_attributes_per_link as usize;
-            for link in links.iter_mut() {
-                let dropped_attributes_count =
-                    link.attributes.len().saturating_sub(link_attributes_limit);
-                link.attributes.truncate(link_attributes_limit);
-                link.dropped_attributes_count = dropped_attributes_count as u32;
-            }
             SpanLinks {
                 links,
                 dropped_count: dropped_count as u32,
@@ -110,23 +103,8 @@ impl SdkTracer {
 
         let start_time = start_time.unwrap_or_else(opentelemetry::time::now);
         let end_time = end_time.unwrap_or(start_time);
-        let spans_events_limit = span_limits.max_events_per_span as usize;
-        let span_events: SpanEvents = if let Some(mut events) = events {
-            let dropped_count = events.len().saturating_sub(spans_events_limit);
-            events.truncate(spans_events_limit);
-            let event_attributes_limit = span_limits.max_attributes_per_event as usize;
-            for event in events.iter_mut() {
-                let dropped_attributes_count = event
-                    .attributes
-                    .len()
-                    .saturating_sub(event_attributes_limit);
-                event.attributes.truncate(event_attributes_limit);
-                event.dropped_attributes_count = dropped_attributes_count as u32;
-            }
-            SpanEvents {
-                events,
-                dropped_count: dropped_count as u32,
-            }
+        let span_events: SpanEvents = if let Some(events) = events {
+            SpanEvents { events }
         } else {
             SpanEvents::default()
         };

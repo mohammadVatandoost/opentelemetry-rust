@@ -9,8 +9,6 @@ use opentelemetry::trace::Event;
 pub struct SpanEvents {
     /// The events stored as a vector. Could be empty if there are no events.
     pub events: Vec<Event>,
-    /// The number of Events dropped from the span.
-    pub dropped_count: u32,
 }
 
 impl Deref for SpanEvents {

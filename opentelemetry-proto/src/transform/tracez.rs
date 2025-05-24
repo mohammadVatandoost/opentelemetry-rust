@@ -65,7 +65,6 @@ mod tonic {
                 time_unix_nano: to_nanos(event.timestamp),
                 name: event.name.to_string(),
                 attributes: Attributes::from(event.attributes).0,
-                dropped_attributes_count: event.dropped_attributes_count,
             }
         }
     }
